@@ -154,67 +154,64 @@ return res
 ---
 
 ## Вариант 5
-() <->> ( ) <<-> ()
+02(Детали) <->> 16в(Наличие деталей) <<-> 14(отгрузки)
 
-(<u></u>, ) \
-(<u></u>,, , , , , ) \
-(<u></u>, <u></u>, , ) 
-
+02(<u>d_id</u>, type, name, dim, plan) \
+16в(<u>st_id</u>, <u>material_id</u>, dim, amount, lastdate) \
+14(<u>st_id</u>, <u>doc_id</u>, c_id, d_id, dim, amount, date) 
 ### RA
 ```bash
-s7 = [ceh_id, space_id][ceh_id = 7](07в)
-profs = [prof_id](07a)
-bad = [prof_id, ceh_id, space_id][power <= 4](10)
-result = [prof_id]((profs • s7) - bad)
+i100 = [st_id][amount > 100](16в)
+details = [d_id](02)
+bad = [d_id, st_id][amount <= 200](14)
+result = [d_id]((details • i100) - bad)
 ```
 
 ### RIC
 $
 \begin{aligned}
-&\mathrm{find} \ \{ p.prof\_id \mid  p \in \mathrm{07a}\} \\
-&\quad \exists \ (s \in \mathrm{07в}) \ s.ceh\_id = 7 \\
-&\quad \& \ (\forall \ (w \in \mathrm{10}) \\
-&\qquad (w.prof\_id = p.prof\_id \ \& \ w.ceh\_id = s.ceh\_id \ \& \ w.space\_id = s.space\_id) \\
-&\qquad \Rightarrow w.power > 4)
+&\mathrm{find} \ \{ d.d\_id \mid d \in \mathrm{02}\} \\
+&\quad \exists \ (i \in \mathrm{16в}) \ i.amount > 100 \\
+&\quad \& \ (\forall \ (o \in \mathrm{14}) \\
+&\qquad (o.st\_id = i.st\_id \ \& \ o.d\_id = d.d\_id) \\
+&\qquad \Rightarrow o.amount > 200)
 \end{aligned}
 $
 ### SQL
 ``` sql
 
-WITH s7 AS (
-    SELECT DISTINCT ceh_id, space_id
-    FROM 07в
-    WHERE ceh_id = 7
+WITH i100 AS (
+    SELECT DISTINCT st_id
+    FROM 16в
+    WHERE amount > 100
 ),
 bad AS (
-    SELECT DISTINCT prof_id, ceh_id, space_id 
-    FROM 10
-    WHERE power <= 4
+    SELECT DISTINCT d_id, st_id 
+    FROM 14
+    WHERE amount <= 200
 )
-SELECT DISTINCT p.prof_id
-FROM 07a p
-CROSS JOIN s7
+SELECT DISTINCT d.d_id
+FROM 02 d
+CROSS JOIN i100
 WHERE NOT EXISTS(
         SELECT 1 
         FROM bad
-        WHERE p.prof_id = bad.prof_id AND
-            s7.ceh_id = bad.ceh_id AND
-            s7.space_id = bad.space_id            
-    )
+        WHERE d.d_id = bad.d_id AND
+            i100.st_id = bad.st_id    )
 ```
 ### ORM
 ``` python
-s7 = [(s.ceh_id, s.space_id) for s in 07в if s.ceh_id = 7]
+i100 = [i.st_id for i in 16в if i.amount > 100]
 bad = set()
-for w in 10:
-    if w.power <= 4:
-        bad.add((w.prof_id, w.ceh_id, w.space_id))
+for o in 14:
+    if o.amount <= 200:
+        bad.add((o.d_id, o.st_id))
 
 res = set()
-for p in 07a:
-    for s in s7:
-        if (p.prof_id, *s) not in bad:
-            res.add(p.prof_id)
+for d in 02:
+    for i in i100:
+        if (d.d_id, i.st_id) not in bad:
+            res.add(d.d_id)
 return res
 ```
 
