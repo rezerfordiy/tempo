@@ -15,15 +15,11 @@ result = [c_id](customres • p100 - bad)
 ```
 
 ### RIC
-$
-\begin{aligned}
-&\mathrm{find} \ \{c.c\_id \mid c \in \mathrm{15}\} \\
-&\quad \exists \ (d \in \mathrm{02}) \ d.plan > 100 \\
-&\quad \& \ (\forall \ (s \in \mathrm{14}) \\
-&\qquad (s.d\_id = d.d\_id \ \& \ c.c\_id = s.c\_id) \\
-&\qquad \Rightarrow s.st\_id = 5)
-\end{aligned}
-$
+find { c.c_id | c ∈ 15 } \
+  ∃ (d ∈ 02) d.plan > 100 \
+  ∧ (∀ (s ∈ 14) \
+      (s.d_id = d.d_id ∧ c.c_id = s.c_id) \ 
+      ⇒ s.st_id = 5) 
 ### SQL
 ``` sql
 WITH p100 AS (
@@ -71,21 +67,6 @@ return res
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## Вариант 3
 07a(профессии) <->> 10(личный состав) <<-> 07в(участки)
 
@@ -102,15 +83,11 @@ result = [prof_id]((profs • s7) - bad)
 ```
 
 ### RIC
-$
-\begin{aligned}
-&\mathrm{find} \ \{ p.prof\_id \mid  p \in \mathrm{07a}\} \\
-&\quad \exists \ (s \in \mathrm{07в}) \ s.ceh\_id = 7 \\
-&\quad \& \ (\forall \ (w \in \mathrm{10}) \\
-&\qquad (w.prof\_id = p.prof\_id \ \& \ w.ceh\_id = s.ceh\_id \ \& \ w.space\_id = s.space\_id) \\
-&\qquad \Rightarrow w.power > 4)
-\end{aligned}
-$
+find { p.prof_id | p ∈ 07a } \
+  ∃ (s ∈ 07в) s.ceh_id = 7 \
+  ∧ (∀ (w ∈ 10) \
+      (w.prof_id = p.prof_id ∧ w.ceh_id = s.ceh_id ∧ w.space_id = s.space_id) \
+      ⇒ w.power > 4)
 ### SQL
 ``` sql
 
@@ -168,15 +145,11 @@ result = [d_id]((details • i100) - bad)
 ```
 
 ### RIC
-$
-\begin{aligned}
-&\mathrm{find} \ \{ d.d\_id \mid d \in \mathrm{02}\} \\
-&\quad \exists \ (i \in \mathrm{16в}) \ i.amount > 100 \\
-&\quad \& \ (\forall \ (o \in \mathrm{14}) \\
-&\qquad (o.st\_id = i.st\_id \ \& \ o.d\_id = d.d\_id) \\
-&\qquad \Rightarrow o.amount > 200)
-\end{aligned}
-$
+find { d.d_id | d ∈ 02 } \
+∃ (i ∈ 16в) i.amount > 100 \
+∧ ( ∀ (o ∈ 14) \
+(o.st_id = i.st_id ∧ o.d_id = d.d_id) \
+⇒ o.amount > 200)
 ### SQL
 ``` sql
 
@@ -218,7 +191,131 @@ return res
 ---
 
 ## Вариант 10
+07в(участки) <->> 08(программа) <<-> 02(Детали)
+
+07в(<u>ceh_id</u>, <u>space_id</u>, name, master_id) \
+08(<u>d_id</u>, <u>ceh_id</u>, <u>space_id</u>, <u>year</u>, <u>month</u>, plan) \
+02(<u>d_id</u>, type, name, dim, plan) 
+
+### RA
+```bash
+d100 = [d_id][plan > 100](02)
+places = [ceh_id, space_id](07в)
+bad = [d_id, ceh_id, space_id][plan <= 100 and year = 2025](08)
+result = [ceh_id, space_id]((d100 • places) - bad)
+```
+
+### RIC
+find { place.ceh_id, place.space_id | place ∈ 07в } \
+∃ (d ∈ 02) d.plan > 100 \
+∧ ( ∀ (p ∈ 08) \
+(p.ceh_id = place.ceh_id ∧ p.space_id = place.space_id ∧ p.d_id = d.d_id ∧ p.year = 2025) \
+⇒ p.plan > 100)
+### SQL
+``` sql
+
+WITH d100 AS (
+    SELECT DISTINCT d_id
+    FROM 02
+    WHERE plan > 100
+),
+bad AS (
+    SELECT DISTINCT d_id, ceh_id, space_id
+    FROM 08
+    WHERE amount <= 100 AND year = 2025
+)
+SELECT DISTINCT place.ceh_id, place.space_id
+FROM 17в place
+CROSS JOIN d100
+WHERE NOT EXISTS(
+        SELECT 1 
+        FROM bad
+        WHERE place.ceh_id = bad.ceh_id AND
+            place.space_id = bad.space_id AND
+            d100.d_id = bad.d_id
+)
+```
+### ORM
+``` python
+d100 = [d.d_id for d in 02 if d.plan > 100]
+bad = set()
+for p in 08:
+    if p.amount <= 100 and p.year = 2025:
+        bad.add((p.d_id, p.ceh_id, p.space_id))
+
+res = set()
+for place in 17в:
+    for d in d100:
+        if (d.d_id, place.ceh_id, place.space_id) not in bad:
+            res.add((place.ceh_id, place.space_id))
+return res
+```
+
+---
 ## Вариант 11
+16в:Наличие деталей <–>> 13б:Учет поставок деталей <<–> 09в:Поставки деталей.
+
+07в(участки) <->> 08(программа) <<-> 02(Детали)
+
+07в(<u>ceh_id</u>, <u>space_id</u>, name, master_id) \
+08(<u>d_id</u>, <u>ceh_id</u>, <u>space_id</u>, <u>year</u>, <u>month</u>, plan) \
+02(<u>d_id</u>, type, name, dim, plan) 
+
+### RA
+```bash
+d100 = [d_id][plan > 100](02)
+places = [ceh_id, space_id](07в)
+bad = [d_id, ceh_id, space_id][plan <= 100 and year = 2025](08)
+result = [ceh_id, space_id]((d100 • places) - bad)
+```
+
+### RIC
+find { place.ceh_id, place.space_id | place ∈ 07в } \
+∃ (d ∈ 02) d.plan > 100 \
+∧ ( ∀ (p ∈ 08) \
+(p.ceh_id = place.ceh_id ∧ p.space_id = place.space_id ∧ p.d_id = d.d_id ∧ p.year = 2025) \
+⇒ p.plan > 100)
+### SQL
+``` sql
+
+WITH d100 AS (
+    SELECT DISTINCT d_id
+    FROM 02
+    WHERE plan > 100
+),
+bad AS (
+    SELECT DISTINCT d_id, ceh_id, space_id
+    FROM 08
+    WHERE amount <= 100 AND year = 2025
+)
+SELECT DISTINCT place.ceh_id, place.space_id
+FROM 17в place
+CROSS JOIN d100
+WHERE NOT EXISTS(
+        SELECT 1 
+        FROM bad
+        WHERE place.ceh_id = bad.ceh_id AND
+            place.space_id = bad.space_id AND
+            d100.d_id = bad.d_id
+)
+```
+### ORM
+``` python
+d100 = [d.d_id for d in 02 if d.plan > 100]
+bad = set()
+for p in 08:
+    if p.amount <= 100 and p.year = 2025:
+        bad.add((p.d_id, p.ceh_id, p.space_id))
+
+res = set()
+for place in 17в:
+    for d in d100:
+        if (d.d_id, place.ceh_id, place.space_id) not in bad:
+            res.add((place.ceh_id, place.space_id))
+return res
+```
+
+---
 ## Вариант 15
 ## Вариант 16
 ## Вариант 17
