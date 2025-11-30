@@ -130,7 +130,7 @@ return res
 
 ---
 
-## Вариант 5
+## Вариант 5 ??
 02(Детали) <->> 16в(Наличие деталей) <<-> 14(отгрузки)
 
 02(<u>d_id</u>, type, name, dim, plan) \
@@ -331,5 +331,236 @@ return result
 
 ---
 ## Вариант 15
+
+16a(склад) <->> 13б(Учет поставок деталей) <<-> 09в(Поставки детале)
+
+16a(<u>sklad_id</u>, name) \
+13б(<u>st_id</u>, <u>doc_id</u>, deal_id, d_id, dim, amount, date) \
+09в(<u>deal_id</u>, <u>d_id</u>, dim, start, end, plan_amount, plan_price) 
+
+### RA
+```bash
+# Договорные поставки с plan_amount > 1000
+good_supplies = σ_{plan_amount > 1000}(09в)
+
+# Все склады
+all_warehouses = π_{sklad_id}(16a)
+
+# "Плохие" поступления (amount ≤ 50)
+bad_receipts = π_{deal_id, d_id, st_id}(σ_{amount ≤ 50}(13б))
+
+# Все возможные комбинации хороших поставок и складов
+supplies_warehouses = good_supplies × all_warehouses
+
+# Анти-соединение: убираем пары (поставка, склад), где есть плохие поступления
+good_pairs = supplies_warehouses - (supplies_warehouses ⨝_{deal_id, d_id, sklad_id=st_id} bad_receipts)
+
+# Итоговый результат - поставки, для которых есть хотя бы один "хороший" склад
+result = π_{deal_id, d_id}(good_pairs)
+```
+
+### RIC
+find { sup.deal_id, sup.d_id | sup ∈ 09в} sup.plan_amount > 1000 ∧ \
+       ∃ (wh ∈ 16a) ∀ (rec ∈ 13б) \
+       ((rec.deal_id = sup.deal_id ∧ rec.d_id = sup.d_id ∧ rec.st_id = wh.sklad_id) \
+        ⇒ rec.amount > 50)
+### SQL
+``` sql
+WITH good_supplies AS (
+    SELECT deal_id, d_id
+    FROM 09в
+    WHERE plan_amount > 1000
+),
+bad_receipts AS (
+    SELECT DISTINCT deal_id, d_id, st_id
+    FROM 13б
+    WHERE amount <= 50
+)
+SELECT DISTINCT gs.deal_id, gs.d_id
+FROM good_supplies gs
+WHERE EXISTS (
+    SELECT 1
+    FROM 16a wh
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM bad_receipts br
+        WHERE br.deal_id = gs.deal_id 
+          AND br.d_id = gs.d_id 
+          AND br.st_id = wh.sklad_id
+    )
+)
+```
+### ORM
+``` python
+good_supplies = []
+for sup in 09в:
+    if sup.plan_amount > 1000:
+        good_supplies.append((sup.deal_id, sup.d_id))
+
+bad_receipts = set()
+for rec in 13б:
+    if rec.amount <= 50:
+        bad_receipts.add((rec.deal_id, rec.d_id, rec.st_id))
+
+all_warehouses = [wh.sklad_id for wh in 16a]
+
+result = set()
+for (deal_id, d_id) in good_supplies:
+    for wh_id in all_warehouses:
+        # Проверяем, нет ли плохих поступлений для этой поставки на этом складе
+        if (deal_id, d_id, wh_id) not in bad_receipts:
+            result.add((deal_id, d_id))
+            break  # Достаточно одного подходящего склада
+
+return result
+```
+
+---
+
+: <–>> 11 <<–> :Личный состав.
+
+
 ## Вариант 16
+
+05(Нормы затрат труда) <->> 11(:Учет выработки) <<-> 10(Личный состав)
+
+05(<u>d_id</u>, <u>oper_num</u>, prof_id, power, tarif, preparing, time) \
+11(<u>worker_id</u>, <u>date</u>,<u>d_id</u>, <u>oper_num</u>, good_amount, bad_amount, percent) \
+10(<u>worker_id</u>,ceh_id, space_id, prof_id, power, family, name) 
+
+### RA
+```bash
+ops = [d_id, oper_num, prof_id, power](σ_{time>10}(05))
+workers_ops = [worker_id, d_id, oper_num](ops ⨝_{prof_id, power} 10)
+bad_records = [worker_id, d_id, oper_num](σ_{bad_amount>0}(11))
+good_workers = [worker_id](workers_ops - bad_records)
+```
+
+### RIC
+find { w.worker_id | w ∈ 10}  \
+       ∃ (n ∈ 05) (n.time > 10 ∧ n.prof_id = w.prof_id  ∧ n.power = w.power ∧ \
+                   ∀ (p ∈ 11) ((p.worker_id = w.worker_id ∧ p.d_id = n.d_id ∧ p.oper_num = n.oper_num) ⇒ p.bad_amount = 0)) 
+### SQL
+``` sql
+WITH ops AS (
+    SELECT d_id, oper_num, prof_id, power
+    FROM 05
+    WHERE time > 10
+),
+workers_ops AS (
+    SELECT w.worker_id, o.d_id, o.oper_num
+    FROM ops o
+    JOIN 10 w ON o.prof_id = w.prof_id AND o.power = w.power
+),
+bad_records AS (
+    SELECT DISTINCT worker_id, d_id, oper_num
+    FROM 11
+    WHERE bad_amount > 0
+)
+SELECT DISTINCT worker_id
+FROM workers_ops
+WHERE (worker_id, d_id, oper_num) NOT IN (SELECT * FROM bad_records);
+```
+### ORM
+``` python
+# Предположим, что у нас есть таблицы как коллекции объектов или словарей.
+
+# 1. Найдем все операции с time > 10
+ops = [o for o in 05 if o.time > 10]
+
+# 2. Создадим множество рабочих из 10
+workers = list(10)
+
+# 3. Создадим множество плохих записей: кортежи (worker_id, d_id, oper_num) где bad_amount > 0
+bad_records = set()
+for p in 11:
+    if p.bad_amount > 0:
+        bad_records.add((p.worker_id, p.d_id, p.oper_num))
+
+# 4. Теперь переберем всех рабочих и операции, подходящие по prof_id и power
+result = set()
+for w in workers:
+    for o in ops:
+        if o.prof_id == w.prof_id and o.power == w.power:
+            # Проверяем, нет ли этой комбинации в bad_records
+            if (w.worker_id, o.d_id, o.oper_num) not in bad_records:
+                result.add(w.worker_id)
+                # break? Нет, break не обязательно, потому что нам нужно добавить рабочего хотя бы по одной операции.
+                # Но чтобы избежать лишних проверок, можно break внутри цикла по операциям? 
+                # Однако, если мы нашли одну операцию, то можно переходить к следующему рабочему?
+                # Да, потому что нам нужно только наличие хотя бы одной операции.
+                break
+
+return result
+```
+
 ## Вариант 17
+
+16a(склад) <->> 16в(Наличие деталей) <<-> 13б Учет поставок деталей)
+
+16a(<u>sklad_id</u>, name) \
+16в(<u>st_id</u>, <u>d_id</u>, dim, amount, lastdate) \
+13б(<u>st_id</u>, <u>doc_id</u>, deal_id, d_id, dim, amount, date) \
+
+### RA
+good_presence = [st_id, d_id](σ_{amount>100}(16в))
+
+bad_receipts = [st_id, d_id](σ_{amount<=50}(13б))
+
+good_pairs = good_presence - bad_receipts
+
+result = [sklad_id](16a ⨝_{sklad_id=st_id} good_pairs)
+
+### RIC
+find { wh.sklad_id | wh ∈ 16a ∧ \
+       ∃ (pr ∈ 16в) (pr.st_id = wh.sklad_id ∧ pr.amount > 100 ∧ \
+                     ∀ (rec ∈ 13б) ((rec.st_id = wh.sklad_id ∧ rec.d_id = pr.d_id) ⇒ rec.amount > 50)) }
+
+### SQL
+WITH good_presence AS (
+    SELECT st_id, d_id
+    FROM 16в
+    WHERE amount > 100
+),
+bad_receipts AS (
+    SELECT DISTINCT st_id, d_id
+    FROM 13б
+    WHERE amount <= 50
+),
+good_pairs AS (
+    SELECT gp.st_id, gp.d_id
+    FROM good_presence gp
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM bad_receipts br
+        WHERE br.st_id = gp.st_id AND br.d_id = gp.d_id
+    )
+)
+SELECT DISTINCT w.sklad_id
+FROM 16a w
+JOIN good_pairs gp ON w.sklad_id = gp.st_id
+
+### ORM
+good_presence = set() \
+
+for pr in 16в: \
+    if pr.amount > 100: \
+        good_presence.add((pr.st_id, pr.d_id)) \
+
+bad_receipts = set() \
+
+for rec in 13б: \
+    if rec.amount <= 50: \
+        bad_receipts.add((rec.st_id, rec.d_id)) \
+
+good_pairs = good_presence - bad_receipts \
+
+result = set() \
+
+for wh in 16a: \
+    for (st_id, d_id) in good_pairs: \
+        if wh.sklad_id == st_id: \
+            result.add(wh.sklad_id) \
+            break \
+
+return result \
