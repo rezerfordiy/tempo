@@ -157,7 +157,7 @@ WITH i100 AS (
     FROM 16в
     WHERE amount > 100
 ),
-bad_shipments AS (
+bad AS (
     SELECT DISTINCT d_id, st_id
     FROM 14
     WHERE amount <= 200
