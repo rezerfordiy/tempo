@@ -11,7 +11,7 @@
 p100 = [d_id][plan > 100](02)
 customers = [c_id](15)
 bad = [c_id, d_id][st_id != 5](14)
-result = [c_id](customres ** p100 - bad)
+result = [c_id](customres • p100 - bad)
 ```
 
 ### RIC
@@ -59,6 +59,33 @@ for c in 15:
 return res
 ```
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Вариант 3
 07a(профессии) <->> 10(личный состав) <<-> 07в(участки)
 
@@ -71,7 +98,7 @@ return res
 s7 = [ceh_id, space_id][ceh_id = 7](07в)
 profs = [prof_id](07a)
 bad = [prof_id, ceh_id, space_id][power <= 4](10)
-result = [prof_id]((profs ** s7) - bad)
+result = [prof_id]((profs • s7) - bad)
 ```
 
 ### RIC
@@ -86,100 +113,115 @@ $
 $
 ### SQL
 ``` sql
-WITH bad AS (
+
+WITH s7 AS (
+    SELECT DISTINCT ceh_id, space_id
+    FROM 07в
+    WHERE ceh_id = 7
+),
+bad AS (
     SELECT DISTINCT prof_id, ceh_id, space_id 
     FROM 10
     WHERE power <= 4
 )
 SELECT DISTINCT p.prof_id
 FROM 07a p
-WHERE ceh_id = 7 AND
-    NOT EXISTS(
+CROSS JOIN s7
+WHERE NOT EXISTS(
         SELECT 1 
         FROM bad
         WHERE p.prof_id = bad.prof_id AND
-            p.ceh_id = bad.ceh_id AND
-            p.space_id = bad.space_id            
+            s7.ceh_id = bad.ceh_id AND
+            s7.space_id = bad.space_id            
     )
 ```
 ### ORM
 ``` python
+s7 = [(s.ceh_id, s.space_id) for s in 07в if s.ceh_id = 7]
 bad = set()
-for  in :
-    if :
-        bad.push()
+for w in 10:
+    if w.power <= 4:
+        bad.add((w.prof_id, w.ceh_id, w.space_id))
 
 res = set()
-
-for  in :
-     = .find()
-    if and not bad.contains():
-        res.push()
-
+for p in 07a:
+    for s in s7:
+        if (p.prof_id, *s) not in bad:
+            res.add(p.prof_id)
 return res
 ```
 
 ---
 
-() <->> () <<-> ()
+## Вариант 5
+() <->> ( ) <<-> ()
 
-15(<u></u>, , ) \
-14(<u></u>, <u></u>, , , , , ) \
-02(<u></u>, , , , ) 
+(<u></u>, ) \
+(<u></u>,, , , , , ) \
+(<u></u>, <u></u>, , ) 
 
 ### RA
 ```bash
-bad = [, ][]()
-all = [, ]()
-good = all - bad
-good = good * [][ ]()
-result =  * [] 
+s7 = [ceh_id, space_id][ceh_id = 7](07в)
+profs = [prof_id](07a)
+bad = [prof_id, ceh_id, space_id][power <= 4](10)
+result = [prof_id]((profs • s7) - bad)
 ```
 
 ### RIC
 $
 \begin{aligned}
-&\mathrm{find} \ \{ \mid  \in \mathrm{}\} \\
-&\quad \exists \ ( \in \mathrm{}) \  \\
-&\quad \& \ (\forall \ ( \in \mathrm{}) \\
-&\qquad ( \ \& \ ) \\
-&\qquad \Rightarrow )
+&\mathrm{find} \ \{ p.prof\_id \mid  p \in \mathrm{07a}\} \\
+&\quad \exists \ (s \in \mathrm{07в}) \ s.ceh\_id = 7 \\
+&\quad \& \ (\forall \ (w \in \mathrm{10}) \\
+&\qquad (w.prof\_id = p.prof\_id \ \& \ w.ceh\_id = s.ceh\_id \ \& \ w.space\_id = s.space\_id) \\
+&\qquad \Rightarrow w.power > 4)
 \end{aligned}
 $
 ### SQL
 ``` sql
-WITH bad AS (
-    SELECT DISTINCT 
-    FROM 
-    WHERE 
+
+WITH s7 AS (
+    SELECT DISTINCT ceh_id, space_id
+    FROM 07в
+    WHERE ceh_id = 7
+),
+bad AS (
+    SELECT DISTINCT prof_id, ceh_id, space_id 
+    FROM 10
+    WHERE power <= 4
 )
-SELECT DISTINCT 
-FROM 
-JOIN  
-ON 
-WHERE  AND
-    NOT EXISTS(
+SELECT DISTINCT p.prof_id
+FROM 07a p
+CROSS JOIN s7
+WHERE NOT EXISTS(
         SELECT 1 
         FROM bad
-        WHERE  AND
-            
+        WHERE p.prof_id = bad.prof_id AND
+            s7.ceh_id = bad.ceh_id AND
+            s7.space_id = bad.space_id            
     )
 ```
 ### ORM
 ``` python
+s7 = [(s.ceh_id, s.space_id) for s in 07в if s.ceh_id = 7]
 bad = set()
-for  in :
-    if :
-        bad.push()
+for w in 10:
+    if w.power <= 4:
+        bad.add((w.prof_id, w.ceh_id, w.space_id))
 
 res = set()
-
-for  in :
-     = .find()
-    if and not bad.contains():
-        res.push()
-
+for p in 07a:
+    for s in s7:
+        if (p.prof_id, *s) not in bad:
+            res.add(p.prof_id)
 return res
 ```
 
 ---
+
+## Вариант 10
+## Вариант 11
+## Вариант 15
+## Вариант 16
+## Вариант 17
