@@ -264,56 +264,69 @@ return res
 
 ### RA
 ```bash
-d100 = [d_id][plan > 100](02)
-places = [ceh_id, space_id](07в)
-bad = [d_id, ceh_id, space_id][plan <= 100 and year = 2025](08)
-result = [ceh_id, space_id]((d100 • places) - bad)
+s1000 = [deal_id, d_id][plan_amount > 1000](09в)
+bad = [deal_id, d_id][amount <= 50](13б)
+temp = s1000 - bad
+result = [st_id, d_id](16в * temp)
 ```
 
 ### RIC
-find { having.st_id, having.material_id | having ∈ 16в } \
-∃ (sup ∈ 09в) d.plan > 100 \
-∧ ( ∀ (p ∈ 08) \
-(p.ceh_id = place.ceh_id ∧ p.space_id = place.space_id ∧ p.d_id = d.d_id ∧ p.year = 2025) \
-⇒ p.plan > 100)
+find { having.st_id, having.d_id | having ∈ 16в } \
+∃ (sup ∈ 09в) sup.d_id = having.d_id ∧ d.plan_amount > 1000 \
+∧ ( ∀ (getting ∈ 13б) \
+(getting.deal_id = sup.deal_id ∧ getting.d_id = sup.d_id) \
+⇒ getting.amount > 50)
 ### SQL
 ``` sql
-
-WITH d100 AS (
-    SELECT DISTINCT d_id
-    FROM 02
-    WHERE plan > 100
+WITH s1000 AS (
+    SELECT deal_id, d_id
+    FROM 09в
+    WHERE plan_amount > 1000
 ),
 bad AS (
-    SELECT DISTINCT d_id, ceh_id, space_id
-    FROM 08
-    WHERE amount <= 100 AND year = 2025
-)
-SELECT DISTINCT place.ceh_id, place.space_id
-FROM 17в place
-CROSS JOIN d100
-WHERE NOT EXISTS(
-        SELECT 1 
+    SELECT DISTINCT deal_id, d_id
+    FROM 13б
+    WHERE amount <= 50
+),
+temp AS (
+    SELECT s1000.deal_id, s1000.d_id
+    FROM s1000
+    WHERE NOT EXISTS (
+        SELECT 1
         FROM bad
-        WHERE place.ceh_id = bad.ceh_id AND
-            place.space_id = bad.space_id AND
-            d100.d_id = bad.d_id
+        WHERE bad.deal_id = s1000.deal_id AND bad.d_id = s1000.d_id
+    )
+)
+SELECT DISTINCT h.st_id, h.d_id
+FROM 16в h
+WHERE EXISTS (
+    SELECT 1
+    FROM temp 
+    WHERE temp.d_id = h.d_id
 )
 ```
 ### ORM
 ``` python
-d100 = [d.d_id for d in 02 if d.plan > 100]
-bad = set()
-for p in 08:
-    if p.amount <= 100 and p.year = 2025:
-        bad.add((p.d_id, p.ceh_id, p.space_id))
+s1000 = set()
+for sup in 09в:
+    if sup.plan_amount > 1000:
+        s1000.add((sup.deal_id, sup.d_id))
 
-res = set()
-for place in 17в:
-    for d in d100:
-        if (d.d_id, place.ceh_id, place.space_id) not in bad:
-            res.add((place.ceh_id, place.space_id))
-return res
+bad = set()
+for rec in 13б:
+    if rec.amount <= 50:
+        bad.add((rec.deal_id, rec.d_id))
+
+temp = s1000 - bad
+
+ids = set(d_id for (deal_id, d_id) in temp)
+
+result = set()
+for h in 16в:
+    if h.d_id in ids:
+        result.add((h.st_id, h.d_id))
+
+return result
 ```
 
 ---
